@@ -29,8 +29,7 @@ def bpm2numsamples(bpm, filtered_framerate):
 
 def trybeat(envelope, bpm, num_teeth, filtered_framerate):
     """Try a 3-sample comb filter on the envelope-filtered data at a given BPM. Based on Ciuffo's implementation at http://ch00ftech.com/2012/02/02/software-beat-tracking-because-a-tap-tempo-button-is-too-lazy/"""
-    block_size_s = 5
-    num_teeth = int(block_size_s * (bpm / 60.))
+    assert num_teeth > 3, "Block size too small"
     gap = bpm2numsamples(bpm, filtered_framerate) #converts BPM to samples per beat
     comb_width = (num_teeth - 1) * gap
     if (len(envelope)<=comb_width): #envelope waveform is too small to fit the comb.
@@ -46,11 +45,13 @@ def trybeat(envelope, bpm, num_teeth, filtered_framerate):
     phase = np.argmax(comb_vals)
     return energy, phase
 
-def most_likely_bpm(enveloped_data, bpm_list, num_teeth, filtered_framerate):
+def most_likely_bpm(enveloped_data, bpm_list, filtered_framerate, 
+                    block_size_s):
     max_energy = 0
     max_energy_bpm = 0
     max_energy_phase = 0
     for i, bpm in enumerate(bpm_list):
+        num_teeth = calc_num_teeth(block_size_s, bpm)
         energy, phase = trybeat(enveloped_data, bpm, num_teeth, filtered_framerate)
         if energy > max_energy:
             max_energy = energy
@@ -58,6 +59,8 @@ def most_likely_bpm(enveloped_data, bpm_list, num_teeth, filtered_framerate):
             max_energy_phase = phase
     return max_energy_bpm, max_energy_phase
 
+def calc_num_teeth(block_size_s, bpm):
+    return int(block_size_s * bpm / 60.)
 
 if __name__  == "__main__":
     block_size_s = 5
@@ -79,9 +82,6 @@ if __name__  == "__main__":
     bpm_to_test = range(50, 170)
     bpm_to_plot = bpm_to_test
     print block_size_s, bpm_to_test[0]
-    num_teeth = int(block_size_s * (bpm_to_test[0] / 60.))
-    print "teeth:", num_teeth
-    assert num_teeth > 3, "Block size too small"
     calculated_bpms = []
     for time_ndx in range(10):
         channels = [ [] for x in range(num_channels) ]
@@ -102,8 +102,9 @@ if __name__  == "__main__":
         # enveloped_data = np.power(enveloped_data, 2)
         # enveloped_data = savitzky_golay(enveloped_data, 11, 3, deriv=0)
         bpm, phase = most_likely_bpm(enveloped_data, 
-                                     bpm_to_test, num_teeth, 
-                                     filtered_framerate)
+                                     bpm_to_test, 
+                                     filtered_framerate,
+                                     block_size_s)
         print "Most likely BPM:", bpm
         calculated_bpms.append(bpm)
         gap = bpm2numsamples(bpm, filtered_framerate)
@@ -111,10 +112,11 @@ if __name__  == "__main__":
             plt.plot(filtered_data,'b')
             plt.hold(True)
             plt.plot(enveloped_data,'r')
+            num_teeth = calc_num_teeth(block_size_s, bpm)
             plt.plot([len(enveloped_data) - (phase + gap * i) for i in range(num_teeth)], [0 for i in range(num_teeth)], 'ko')
             plt.figure()
             bpm_energies = [trybeat(enveloped_data, 
-                                           bpm, num_teeth,
+                                           bpm, calc_num_teeth(block_size_s, bpm),
                                            filtered_framerate) for bpm in bpm_to_plot]
             plt.plot(bpm_to_plot, bpm_energies)
             # plt.figure()
