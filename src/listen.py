@@ -5,6 +5,7 @@ import numpy as np
 import scipy.signal
 import matplotlib.pyplot as plt
 import bisect
+from scipy_savitzky import savitzky_golay
 
 def fast_rolling_envelope(data, width):
     """Do a rolling envelope filter on array [data], returning an array of the same length."""
@@ -34,14 +35,14 @@ def trybeat(envelope, bpm, num_teeth, filtered_framerate):
     if (len(envelope)<=comb_width): #envelope waveform is too small to fit the comb.
         return 0, 0
     else:
-        comb_positions = gap
+        # comb_positions = gap
+        comb_positions = len(envelope) - comb_width
 
         comb_vals = np.array([np.sum(envelope[[-(i+j*gap) for j in range(num_teeth)]])
                               for i in range(comb_positions)])
         comb_vals = np.power(comb_vals, 2)
     energy = np.sum(comb_vals)/comb_positions #take the average so that the function doesn't favor smaller combs that can calculate more values before they hit the end of the envelope waveform
-    # phase = comb_vals.index(max(comb_vals))
-    phase = 0
+    phase = np.argmax(comb_vals)
     return energy, phase
 
 def most_likely_bpm(enveloped_data, bpm_list, num_teeth, filtered_framerate):
@@ -56,8 +57,9 @@ def most_likely_bpm(enveloped_data, bpm_list, num_teeth, filtered_framerate):
             max_energy_phase = phase
     return max_energy_bpm, max_energy_phase
 
+
 if __name__  == "__main__":
-    block_size_s = 60
+    block_size_s = 5
     stream = wave.open('crazy.wav', 'r')
     num_channels = stream.getnchannels()
     framerate = stream.getframerate()
@@ -78,8 +80,9 @@ if __name__  == "__main__":
     print block_size_s, bpm_to_test[0]
     num_teeth = int(block_size_s * (bpm_to_test[0] / 60.))
     print "teeth:", num_teeth
+    assert num_teeth > 3, "Block size too small"
     calculated_bpms = []
-    for time_ndx in range(1):
+    for time_ndx in range(10):
         channels = [ [] for x in range(num_channels) ]
 
         # stream.readframes(range_s[0] * framerate)
@@ -92,25 +95,33 @@ if __name__  == "__main__":
 
         filtered_data = scipy.signal.decimate(channels[0], q, n=3, ftype="iir")
         enveloped_data = fast_rolling_envelope(filtered_data, 10)
+        # enveloped_data = np.diff(enveloped_data)
+        # enveloped_data = savitzky_golay(enveloped_data, 11, 3, deriv=0)
+        # enveloped_data = fast_rolling_envelope(enveloped_data, 10)
+        # enveloped_data = np.power(enveloped_data, 2)
+        # enveloped_data = savitzky_golay(enveloped_data, 11, 3, deriv=0)
         bpm, phase = most_likely_bpm(enveloped_data, 
                                      bpm_to_test, num_teeth, 
                                      filtered_framerate)
         print "Most likely BPM:", bpm
         calculated_bpms.append(bpm)
-        # gap = bpm2numsamples(bpm, filtered_framerate)
-        # if time_ndx == 0:
-        #     plt.plot(filtered_data,'b')
-        #     plt.hold(True)
-        #     plt.plot(enveloped_data,'r')
-        #     plt.plot([len(enveloped_data) - (phase + gap * i) for i in range(num_teeth)], [0 for i in range(num_teeth)], 'ko')
-        #     plt.figure()
-        #     plt.plot(bpm_to_plot, [trybeat(enveloped_data, 
-        #                                    bpm, num_teeth,
-        #                                    filtered_framerate) for bpm in bpm_to_plot])
+        gap = bpm2numsamples(bpm, filtered_framerate)
+        if time_ndx == 0:
+            plt.plot(filtered_data,'b')
+            plt.hold(True)
+            plt.plot(enveloped_data,'r')
+            plt.plot([len(enveloped_data) - (phase + gap * i) for i in range(num_teeth)], [0 for i in range(num_teeth)], 'ko')
+            plt.figure()
+            bpm_energies = [trybeat(enveloped_data, 
+                                           bpm, num_teeth,
+                                           filtered_framerate) for bpm in bpm_to_plot]
+            plt.plot(bpm_to_plot, bpm_energies)
+            # plt.figure()
+            # plt.plot(bpm_to_plot, np.diff(bpm_energies))
 
-    # plt.figure()
-    # plt.plot(calculated_bpms, 'b')
-    # plt.show()
+    plt.figure()
+    plt.plot(calculated_bpms, 'b')
+    plt.show()
 
     # max_energy_gap = int(bpm2numsamples(max_energy_bpm))
     # plt.plot(filtered_data,'b')
