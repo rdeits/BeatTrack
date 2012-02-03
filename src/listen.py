@@ -86,73 +86,74 @@ def most_likely_bpm(enveloped_data, bpm_list, num_teeth, filtered_framerate):
             max_energy_phase = phase
     return max_energy_bpm, max_energy_phase
 
-block_size_s = 5
-stream = wave.open('crazy.wav', 'r')
-num_channels = stream.getnchannels()
-framerate = stream.getframerate()
-print "framerate:", framerate
-total_samples = int(framerate * block_size_s) * num_channels
-sample_width = stream.getsampwidth()
-if sample_width == 1: 
-        fmt = "%iB" % total_samples # read unsigned chars
-elif sample_width == 2:
-    fmt = "%ih" % total_samples # read signed 2 byte shorts
-else:
-    raise ValueError("Only supports 8 and 16 bit audio formats.")
-cutoff = 160
-nyq = framerate/2
-q = int(nyq//cutoff)
-filtered_framerate = framerate / q
-bpm_to_test = range(50, 170)
-bpm_to_plot = bpm_to_test
-print block_size_s, bpm_to_test[0]
-num_teeth = int(block_size_s * (bpm_to_test[0] / 60.))
-print "teeth:", num_teeth
-calculated_bpms = []
-for time_ndx in range(1):
-    channels = [ [] for x in range(num_channels) ]
+if __name__  == "__main__":
+    block_size_s = 5
+    stream = wave.open('crazy.wav', 'r')
+    num_channels = stream.getnchannels()
+    framerate = stream.getframerate()
+    print "framerate:", framerate
+    total_samples = int(framerate * block_size_s) * num_channels
+    sample_width = stream.getsampwidth()
+    if sample_width == 1: 
+            fmt = "%iB" % total_samples # read unsigned chars
+    elif sample_width == 2:
+        fmt = "%ih" % total_samples # read signed 2 byte shorts
+    else:
+        raise ValueError("Only supports 8 and 16 bit audio formats.")
+    cutoff = 160
+    nyq = framerate/2
+    q = int(nyq//cutoff)
+    filtered_framerate = framerate / q
+    bpm_to_test = range(50, 170)
+    bpm_to_plot = bpm_to_test
+    print block_size_s, bpm_to_test[0]
+    num_teeth = int(block_size_s * (bpm_to_test[0] / 60.))
+    print "teeth:", num_teeth
+    calculated_bpms = []
+    for time_ndx in range(1):
+        channels = [ [] for x in range(num_channels) ]
 
-    # stream.readframes(range_s[0] * framerate)
-    data = stream.readframes(int(block_size_s * framerate))
-    data = wave.struct.unpack(fmt, data)
+        # stream.readframes(range_s[0] * framerate)
+        data = stream.readframes(int(block_size_s * framerate))
+        data = wave.struct.unpack(fmt, data)
 
-    for index, value in enumerate(data):
-        bucket = index % num_channels
-        channels[bucket].append(value)
+        for index, value in enumerate(data):
+            bucket = index % num_channels
+            channels[bucket].append(value)
 
-    filtered_data = scipy.signal.decimate(channels[0], q, n=3, ftype="iir")
-    enveloped_data = [rolling_envelope(filtered_data, i, 10)\
-                      for i in range(len(filtered_data))]
-    enveloped_data2 = fast_rolling_envelope(filtered_data, 10)
-    assert all([abs(enveloped_data[i] - enveloped_data2[i]) < 1 for i in range(20, len(enveloped_data))]), [str(i) + "\n" + str(enveloped_data[i]) + "\n" + str(enveloped_data2[i]) for i in range(20, len(enveloped_data)) if abs(enveloped_data[i] - enveloped_data2[i]) >= 1]
-    print "passed test"
-    bpm, phase = most_likely_bpm(enveloped_data, bpm_to_test, num_teeth, filtered_framerate)
-    print bpm
-    calculated_bpms.append(bpm)
-    gap = int(bpm2numsamples(bpm, filtered_framerate))
-    if time_ndx == 0:
-        plt.plot(filtered_data,'b')
-        plt.hold(True)
-        plt.plot(enveloped_data,'r')
-        plt.plot([len(enveloped_data) - (phase + gap * i) for i in range(num_teeth)], [0 for i in range(num_teeth)], 'ko')
-        plt.figure()
-        plt.plot(bpm_to_plot, [trybeat(enveloped_data, 
-                                       bpm, num_teeth,
-                                       filtered_framerate) for bpm in bpm_to_plot])
+        filtered_data = scipy.signal.decimate(channels[0], q, n=3, ftype="iir")
+        enveloped_data = [rolling_envelope(filtered_data, i, 10)\
+                          for i in range(len(filtered_data))]
+        enveloped_data2 = fast_rolling_envelope(filtered_data, 10)
+        assert all([abs(enveloped_data[i] - enveloped_data2[i]) < 1 for i in range(20, len(enveloped_data))]), [str(i) + "\n" + str(enveloped_data[i]) + "\n" + str(enveloped_data2[i]) for i in range(20, len(enveloped_data)) if abs(enveloped_data[i] - enveloped_data2[i]) >= 1]
+        print "passed test"
+        bpm, phase = most_likely_bpm(enveloped_data, bpm_to_test, num_teeth, filtered_framerate)
+        print bpm
+        calculated_bpms.append(bpm)
+        gap = int(bpm2numsamples(bpm, filtered_framerate))
+        if time_ndx == 0:
+            plt.plot(filtered_data,'b')
+            plt.hold(True)
+            plt.plot(enveloped_data,'r')
+            plt.plot([len(enveloped_data) - (phase + gap * i) for i in range(num_teeth)], [0 for i in range(num_teeth)], 'ko')
+            plt.figure()
+            plt.plot(bpm_to_plot, [trybeat(enveloped_data, 
+                                           bpm, num_teeth,
+                                           filtered_framerate) for bpm in bpm_to_plot])
 
-# plt.figure()
-# plt.plot(calculated_bpms, 'b')
-plt.show()
+    # plt.figure()
+    # plt.plot(calculated_bpms, 'b')
+    plt.show()
 
-# max_energy_gap = int(bpm2numsamples(max_energy_bpm))
-# plt.plot(filtered_data,'b')
-# plt.hold(True)
-# plt.plot(enveloped_data,'r')
-# plt.plot([len(enveloped_data) - max_energy_phase, len(enveloped_data) - (max_energy_phase + max_energy_gap), len(enveloped_data) - (max_energy_phase + max_energy_gap*2)], [0, 0, 0], 'ko')
-# # plt.plot([median_rolling_envelope(channels[0], i, 1000) for i in range(len(channels[0]))],'g')
-# plt.figure()
-# plt.plot(bpm_to_plot, [trybeat(enveloped_data, bpm) for bpm in bpm_to_plot])
-# plt.show()
+    # max_energy_gap = int(bpm2numsamples(max_energy_bpm))
+    # plt.plot(filtered_data,'b')
+    # plt.hold(True)
+    # plt.plot(enveloped_data,'r')
+    # plt.plot([len(enveloped_data) - max_energy_phase, len(enveloped_data) - (max_energy_phase + max_energy_gap), len(enveloped_data) - (max_energy_phase + max_energy_gap*2)], [0, 0, 0], 'ko')
+    # # plt.plot([median_rolling_envelope(channels[0], i, 1000) for i in range(len(channels[0]))],'g')
+    # plt.figure()
+    # plt.plot(bpm_to_plot, [trybeat(enveloped_data, bpm) for bpm in bpm_to_plot])
+    # plt.show()
 
 
 
