@@ -29,19 +29,20 @@ def bpm2numsamples(bpm, filtered_framerate):
 
 def trybeat(envelope, bpm, num_teeth, filtered_framerate):
     """Try a 3-sample comb filter on the envelope-filtered data at a given BPM. Based on Ciuffo's implementation at http://ch00ftech.com/2012/02/02/software-beat-tracking-because-a-tap-tempo-button-is-too-lazy/"""
-    energy = 0
+    block_size_s = 5
+    num_teeth = int(block_size_s * (bpm / 60.))
     gap = bpm2numsamples(bpm, filtered_framerate) #converts BPM to samples per beat
     comb_width = (num_teeth - 1) * gap
     if (len(envelope)<=comb_width): #envelope waveform is too small to fit the comb.
         return 0, 0
     else:
-        # comb_positions = gap
-        comb_positions = len(envelope) - comb_width
+        comb_positions = gap
+        # comb_positions = len(envelope) - comb_width
 
         comb_vals = np.array([np.sum(envelope[[-(i+j*gap) for j in range(num_teeth)]])
                               for i in range(comb_positions)])
-        comb_vals = np.power(comb_vals, 2)
-    energy = np.sum(comb_vals)/comb_positions #take the average so that the function doesn't favor smaller combs that can calculate more values before they hit the end of the envelope waveform
+        comb_vals = np.power(comb_vals, 4)
+    energy = np.sum(comb_vals)/(comb_positions * num_teeth**4) #take the average so that the function doesn't favor smaller combs that can calculate more values before they hit the end of the envelope waveform
     phase = np.argmax(comb_vals)
     return energy, phase
 
