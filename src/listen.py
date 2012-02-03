@@ -19,7 +19,7 @@ RATE = 44100
 #                 input=True,
 #                 frames_per_buffer=chunk)
 
-block_size_s = 5
+block_size_s = 60
 stream = wave.open('crazy.wav', 'r')
 framerate = stream.getframerate()
 sample_width = stream.getsampwidth()
@@ -45,13 +45,14 @@ def trybeat(envelope, bpm, num_teeth):
     """Try a 3-sample comb filter on the envelope-filtered data at a given BPM. Based on Ciuffo's implementation at http://ch00ftech.com/2012/02/02/software-beat-tracking-because-a-tap-tempo-button-is-too-lazy/"""
     energy = 0
     gap = int(bpm2numsamples(bpm)) #converts BPM to samples per beat
-    if (len(envelope)<=2*gap): #envelope waveform is too small to fit the comb.
+    comb_width = (num_teeth - 1) * gap
+    if (len(envelope)<=comb_width): #envelope waveform is too small to fit the comb.
         return 0, 0
     else:
         # comb_vals = [(envelope[-i]+envelope[-(i+gap)]+envelope[-(i+2*gap)])**2\
         comb_vals = [sum([envelope[-(i+j*gap)] for j in range(num_teeth)])**2\
-                     for i in range(0,len(envelope)-(2*gap))]
-    energy = sum(comb_vals)/(len(envelope)-(2*gap)) #take the average so that the function doesn't favor smaller combs that can calculate more values before they hit the end of the envelope waveform
+                     for i in range(0,len(envelope)-comb_width)]
+    energy = sum(comb_vals)/(len(envelope)-comb_width) #take the average so that the function doesn't favor smaller combs that can calculate more values before they hit the end of the envelope waveform
     phase = comb_vals.index(max(comb_vals))
     return energy, phase
 
@@ -74,13 +75,13 @@ elif sample_width == 2:
 else:
     raise ValueError("Only supports 8 and 16 bit audio formats.")
 
-bpm_to_test = range(40, 200)
+bpm_to_test = range(51, 170)
 bpm_to_plot = bpm_to_test
 num_teeth = int(block_size_s * (bpm_to_test[0] / 60))
 # num_teeth = 3
 print "teeth:", num_teeth
 calculated_bpms = []
-for time_ndx in range(5,6):
+for time_ndx in range(1):
     channels = [ [] for x in range(num_channels) ]
 
     # stream.readframes(range_s[0] * framerate)
@@ -91,20 +92,21 @@ for time_ndx in range(5,6):
         bucket = index % num_channels
         channels[bucket].append(value)
 
-    filtered_data = scipy.signal.decimate(channels[0], q, n = 30, ftype="fir")
+    filtered_data = scipy.signal.decimate(channels[0], q, n=3, ftype="iir")
     enveloped_data = [rolling_envelope(filtered_data, i, 10)\
                       for i in range(len(filtered_data))]
     bpm, phase = most_likely_bpm(enveloped_data, bpm_to_test, num_teeth)
     print bpm
     calculated_bpms.append(bpm)
     gap = int(bpm2numsamples(bpm))
-    plt.plot(filtered_data,'b')
-    plt.hold(True)
-    plt.plot(enveloped_data,'r')
-    plt.plot([len(enveloped_data) - phase, len(enveloped_data) - (phase + gap), len(enveloped_data) - (phase + gap*2)], [0, 0, 0], 'ko')
-    plt.figure()
-    plt.plot(bpm_to_plot, [trybeat(enveloped_data, 
-                                   bpm, num_teeth) for bpm in bpm_to_plot])
+    if time_ndx == 0:
+        plt.plot(filtered_data,'b')
+        plt.hold(True)
+        plt.plot(enveloped_data,'r')
+        plt.plot([len(enveloped_data) - (phase + gap * i) for i in range(num_teeth)], [0 for i in range(num_teeth)], 'ko')
+        plt.figure()
+        plt.plot(bpm_to_plot, [trybeat(enveloped_data, 
+                                       bpm, num_teeth) for bpm in bpm_to_plot])
 
 plt.figure()
 plt.plot(calculated_bpms, 'b')
