@@ -28,31 +28,41 @@ class Listener(threading.Thread):
         num_channels = CHANNELS
         framerate = RATE
         total_samples = int(framerate * block_size_s) * num_channels
+        data_buffer_size = int(framerate * block_size_s)
+        data_buffer = np.zeros(data_buffer_size)
         sample_width = p.get_sample_size(FORMAT)
-        if sample_width == 1: 
-                fmt = "%iB" % total_samples # read unsigned chars
-        elif sample_width == 2:
-            fmt = "%ih" % total_samples # read signed 2 byte shorts
-        else:
-            raise ValueError("Only supports 8 and 16 bit audio formats.")
         cutoff = 160
         nyq = framerate/2
         q = int(nyq//cutoff)
         filtered_framerate = framerate / q
         bpm_to_test = range(50, 170)
+        self.xdata = bpm_to_test
         self.bpm_energies = [0 for x in bpm_to_test]
         while True:
-            data = stream.read(int(block_size_s * framerate))
-            if len(data) < block_size_s * framerate * num_channels * sample_width:
-                print "not enough samples"
-                break
+            # data = stream.read(int(block_size_s * framerate))
+            # available_samples = stream.get_read_available()
+            # print "in loop"
+            available_samples = int(2.5 * framerate)
+            data = stream.read(available_samples)
+            if sample_width == 1: 
+                fmt = "%iB" % available_samples # read unsigned chars
+            elif sample_width == 2:
+                fmt = "%ih" % available_samples # read signed 2 byte shorts
+            else:
+                raise ValueError("Only supports 8 and 16 bit audio formats.")
+            # if len(data) < block_size_s * framerate * num_channels * sample_width:
+            #     print "not enough samples"
+            #     break
             data = wave.struct.unpack(fmt, data)
             channels = [ [] for x in range(num_channels) ]
 
             for index, value in enumerate(data):
                 bucket = index % num_channels
                 channels[bucket].append(value)
-            enveloped_data = filter_and_envelope(channels[0], q)
+            data_buffer[:-len(channels[0])] = data_buffer[len(channels[0]):]
+            data_buffer[-len(channels[0]):] = channels[0]
+
+            enveloped_data = filter_and_envelope(data_buffer, q)
 
             bpm, phase = most_likely_bpm(enveloped_data, 
                                          bpm_to_test, 
@@ -63,7 +73,7 @@ class Listener(threading.Thread):
             bpm_energies = [trybeat(enveloped_data, 
                                            bpm, calc_num_teeth(block_size_s, bpm),
                                            filtered_framerate)[0] for bpm in bpm_to_test]
-            print bpm_energies
+            # print bpm_energies
             self.bpm_energies = bpm_energies
 
 if __name__ == "__main__":

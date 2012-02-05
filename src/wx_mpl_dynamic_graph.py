@@ -86,7 +86,7 @@ class GraphFrame(wx.Frame):
 
         self.axes = self.fig.add_subplot(111)
         self.axes.set_axis_bgcolor('black')
-        self.axes.set_title('Very important random data', size=12)
+        self.axes.set_title('BPM Energies', size=12)
         
         pylab.setp(self.axes.get_xticklabels(), fontsize=8)
         pylab.setp(self.axes.get_yticklabels(), fontsize=8)
@@ -95,7 +95,7 @@ class GraphFrame(wx.Frame):
         # to the plotted line series
         #
         self.plot_data = self.axes.plot(
-            self.data, 
+            self.datagen.listener.xdata, self.data, 
             linewidth=1,
             color=(1, 1, 0),
             )[0]
@@ -103,13 +103,6 @@ class GraphFrame(wx.Frame):
     def draw_plot(self):
         """ Redraws the plot
         """
-        # when xmin is on auto, it "follows" xmax to produce a 
-        # sliding window effect. therefore, xmin is assigned after
-        # xmax.
-        #
-        xmax = len(self.data) if len(self.data) > 50 else 50
-        xmin = xmax - 50
-
         # for ymin and ymax, find the minimal and maximal values
         # in the data set and add a mininal margin.
         # 
@@ -120,7 +113,7 @@ class GraphFrame(wx.Frame):
         ymin = round(min(self.data), 0) - 1
         ymax = round(max(self.data), 0) + 1
 
-        self.axes.set_xbound(lower=xmin, upper=xmax)
+        # self.axes.set_xbound(lower=xmin, upper=xmax)
         self.axes.set_ybound(lower=ymin, upper=ymax)
         
         # anecdote: axes.grid assumes b=True if any other flag is
@@ -129,7 +122,7 @@ class GraphFrame(wx.Frame):
         # work.
         #
 
-        self.plot_data.set_xdata(np.arange(len(self.data)))
+        # self.plot_data.set_xdata(np.arange(len(self.data)))
         self.plot_data.set_ydata(np.array(self.data))
         
         self.canvas.draw()
