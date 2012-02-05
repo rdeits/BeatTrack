@@ -5,12 +5,14 @@ import numpy as np
 import threading
 import time
 import pyaudio
+import matplotlib.pyplot as plt
+# from pylab import *
 
 FORMAT = pyaudio.paInt8
 CHANNELS = 1
 RATE = 44100
 
-from listen import most_likely_bpm, filter_and_envelope
+from listen import most_likely_bpm, filter_and_envelope, trybeat, calc_num_teeth
 
 class Listener(threading.Thread):
     def run(self):
@@ -38,6 +40,7 @@ class Listener(threading.Thread):
         q = int(nyq//cutoff)
         filtered_framerate = framerate / q
         bpm_to_test = range(50, 170)
+        self.bpm_energies = [0 for x in bpm_to_test]
         while True:
             data = stream.read(int(block_size_s * framerate))
             if len(data) < block_size_s * framerate * num_channels * sample_width:
@@ -55,7 +58,13 @@ class Listener(threading.Thread):
                                          bpm_to_test, 
                                          filtered_framerate,
                                          block_size_s)
+            self.result = (bpm, phase)
             print "Most likely BPM:", bpm, "phase:", phase
+            bpm_energies = [trybeat(enveloped_data, 
+                                           bpm, calc_num_teeth(block_size_s, bpm),
+                                           filtered_framerate)[0] for bpm in bpm_to_test]
+            print bpm_energies
+            self.bpm_energies = bpm_energies
 
 if __name__ == "__main__":
     listener = Listener()

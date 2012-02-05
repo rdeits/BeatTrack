@@ -33,7 +33,7 @@ def trybeat(envelope, bpm, num_teeth, filtered_framerate):
     gap = bpm2numsamples(bpm, filtered_framerate) #converts BPM to samples per beat
     comb_width = (num_teeth - 1) * gap
     if (len(envelope)<=comb_width): #envelope waveform is too small to fit the comb.
-        return 0, 0
+        return (0, 0)
     else:
         comb_positions = gap
         # comb_positions = len(envelope) - comb_width
@@ -43,7 +43,7 @@ def trybeat(envelope, bpm, num_teeth, filtered_framerate):
         comb_vals = np.power(comb_vals, 4)
     energy = np.sum(comb_vals)/(comb_positions * num_teeth**4) #take the average so that the function doesn't favor smaller combs that can calculate more values before they hit the end of the envelope waveform
     phase = np.argmax(comb_vals)
-    return energy, phase
+    return (energy, phase)
 
 def most_likely_bpm(enveloped_data, bpm_list, filtered_framerate, 
                     block_size_s):
