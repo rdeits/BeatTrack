@@ -59,12 +59,18 @@ def most_likely_bpm(enveloped_data, bpm_list, filtered_framerate,
             max_energy_phase = phase
     return max_energy_bpm, max_energy_phase
 
+def filter_and_envelope(raw_data, q):
+    filtered_data = scipy.signal.decimate(raw_data, q, n=3, ftype="iir")
+    enveloped_data = fast_rolling_envelope(filtered_data, 10)
+    return enveloped_data
+
+
 def calc_num_teeth(block_size_s, bpm):
     return int(block_size_s * bpm / 60.)
 
 if __name__  == "__main__":
     block_size_s = 5
-    stream = wave.open('crazy.wav', 'r')
+    stream = wave.open('feel_good_inc.wav', 'r')
     num_channels = stream.getnchannels()
     framerate = stream.getframerate()
     total_samples = int(framerate * block_size_s) * num_channels
@@ -93,9 +99,8 @@ if __name__  == "__main__":
         for index, value in enumerate(data):
             bucket = index % num_channels
             channels[bucket].append(value)
+        enveloped_data = filter_and_envelope(channels[0], q)
 
-        filtered_data = scipy.signal.decimate(channels[0], q, n=3, ftype="iir")
-        enveloped_data = fast_rolling_envelope(filtered_data, 10)
         # enveloped_data = np.diff(enveloped_data)
         # enveloped_data = savitzky_golay(enveloped_data, 11, 3, deriv=0)
         # enveloped_data = fast_rolling_envelope(enveloped_data, 10)
@@ -109,7 +114,7 @@ if __name__  == "__main__":
         calculated_bpms.append(bpm)
         gap = bpm2numsamples(bpm, filtered_framerate)
         if time_ndx == 0:
-            plt.plot(filtered_data,'b')
+            # plt.plot(filtered_data,'b')
             plt.hold(True)
             plt.plot(enveloped_data,'r')
             num_teeth = calc_num_teeth(block_size_s, bpm)
