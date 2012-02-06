@@ -84,20 +84,27 @@ class Listener(multiprocessing.Process):
     def most_likely_bpm(self, enveloped_data, bpm_list):
         max_energy = 0
         max_energy_bpm = 0
+        # best_bpms = [(0, 0), (0, 0), (0, 0)]
         max_energy_phase = 0
         all_energies = []
         for i, bpm in enumerate(bpm_list):
             num_teeth = self.calc_num_teeth(bpm)
             energy, phase = self.trybeat(enveloped_data, bpm)
             all_energies.append(energy)
+            # for j, entry in enumerate(best_bpms):
+            #     if energy > entry[1]:
+            #         best_bpms[j] = (bpm, energy)
+            #         max_energy_phase = phase
+            #         break
             if energy > max_energy:
                 max_energy = energy
                 max_energy_bpm = bpm
                 max_energy_phase = phase
         self.bpm_energies = np.array(all_energies)
-        confidence = ((max_energy - np.average(self.bpm_energies))
+        confidence = ((max(self.bpm_energies) - np.average(self.bpm_energies))
                       / np.std(self.bpm_energies))
-        return (max_energy_bpm, max_energy_phase, confidence)
+        return (max_energy_bpm, max_energy, max_energy_phase, confidence)
+        # return (best_bpms, max_energy_phase, confidence)
 
     def trybeat(self, envelope, bpm):
         """Try a 3-sample comb filter on the envelope-filtered data at a given BPM. 
@@ -150,18 +157,20 @@ class Listener(multiprocessing.Process):
 
     def run(self):
         self.open_stream()
-        self.bpm_to_test = range(50, 180)
+        self.bpm_to_test = range(90, 180)
         while True:
             data = self.read_audio_block()
             self.data_buffer = self.unpack_audio_data(data)
             enveloped_data = self.filter_and_envelope(self.data_buffer)
 
-            bpm, phase, confidence = self.most_likely_bpm(enveloped_data, 
+            bpm, energy, phase, confidence = self.most_likely_bpm(enveloped_data, 
                                                      self.bpm_to_test)
             self.result = (bpm, phase, confidence)
             print "Most likely BPM:", bpm, "phase:", phase, "confidence:", confidence
-            if bpm != 0:
-                print "Next beat in", (60./bpm - phase), "seconds"
+            # print "2X harmonic:", bpm * 2, "ratio:", (self.trybeat(enveloped_data, 2*bpm)[0])/energy
+            # print "3X harmonic:", bpm * 3, "radio:", (self.trybeat(enveloped_data, 3*bpm)[0])/energy
+            # if bpm != 0:
+                # print "Next beat in", (60./bpm - phase), "seconds"
 
 if __name__ == "__main__":
     listener = Listener()
