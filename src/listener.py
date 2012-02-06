@@ -18,7 +18,8 @@ RATE = 44100
 # from listen import most_likely_bpm, filter_and_envelope, trybeat, calc_num_teeth
 
 def fast_rolling_envelope(data, width):
-    """Do a rolling envelope filter on array [data], returning an array of the same length."""
+    """Do a rolling envelope filter on array [data], returning an array of the same
+    length."""
     envelope_points = list(data[:int(width//2 - 1)])
     envelope_points.sort()
     points_to_average = int(width//10)
@@ -38,9 +39,12 @@ class Listener(multiprocessing.Process):
     def open_stream(self):
         p = pyaudio.PyAudio()
         self.block_size_s = 5
-        self.stream = p.open(input_device_index = 3, format = FORMAT, channels = CHANNELS,
-                        rate = RATE, input = True, 
-                        frames_per_buffer = self.block_size_s * RATE)
+        self.stream = p.open(input_device_index = 3, 
+                             format = FORMAT, 
+                             channels = CHANNELS,
+                             rate = RATE, 
+                             input = True, 
+                             frames_per_buffer = self.block_size_s * RATE)
         self.num_channels = CHANNELS
         self.framerate = RATE
         data_buffer_size = int(self.framerate * self.block_size_s)
@@ -60,7 +64,9 @@ class Listener(multiprocessing.Process):
 
     def filter_and_envelope(self, raw_data):
         filtered_data = scipy.signal.decimate(raw_data,
-                                              self.decimate_ratio, n=3, ftype="iir")
+                                              self.decimate_ratio, 
+                                              n=3, 
+                                              ftype="iir")
         enveloped_data = fast_rolling_envelope(filtered_data, 10)
         return enveloped_data
 
@@ -98,7 +104,7 @@ class Listener(multiprocessing.Process):
             comb_vals = np.array([np.sum(envelope[[-(i+j*gap) for j in range(num_teeth)]])
                                   for i in range(comb_positions)])
             comb_vals = np.power(comb_vals, 4)
-        energy = np.sum(comb_vals)/(comb_positions * num_teeth**4) #take the average so that the function doesn't favor smaller combs that can calculate more values before they hit the end of the envelope waveform
+        energy = np.sum(comb_vals)/(comb_positions * num_teeth**4) # normalize
         phase = np.argmax(comb_vals)/self.filtered_framerate # Phase in seconds
         return (energy, phase)
 
@@ -121,15 +127,15 @@ class Listener(multiprocessing.Process):
 
     def run(self):
         self.open_stream()
-        self.bpm_to_test = range(50, 170)
+        self.bpm_to_test = np.linspace(50, 99)
         while True:
             # data = self.stream.read(int(self.block_size_s * self.framerate))
             # available_samples = self.stream.get_read_available()
             # print "in loop"
 
-            elapsed_time = time.time() - self.read_timestamp
-            time.sleep(2 - elapsed_time)
-            available_samples = int(2.5 * self.framerate)
+            # elapsed_time = time.time() - self.read_timestamp
+            # time.sleep(2 - elapsed_time)
+            available_samples = int(self.block_size_s * self.framerate)
             # available_samples = max(
             #     int((time.time() - self.read_timestamp) * self.framerate * 1.5),
             #     1024)
@@ -143,10 +149,17 @@ class Listener(multiprocessing.Process):
             self.read_timestamp = time.time()
             raw_data = self.unpack_audio_data(data)
 
-            self.data_buffer[:-len(raw_data)] = self.data_buffer[len(raw_data):]
-            self.data_buffer[-len(raw_data):] = raw_data
+            # self.data_buffer[:-len(raw_data)] = self.data_buffer[len(raw_data):]
+            # self.data_buffer[-len(raw_data):] = raw_data
+            self.data_buffer = raw_data
 
             enveloped_data = self.filter_and_envelope(self.data_buffer)
+
+            fft_data = np.fft.rfft(enveloped_data - np.average(enveloped_data))
+            max_fft_index = np.argmax(fft_data)
+            max_fft_freq = max_fft_index * self.filtered_framerate / len(enveloped_data)
+            max_fft_bpm = max_fft_freq * 60
+            print max_fft_bpm
 
             bpm, phase, confidence = self.most_likely_bpm(enveloped_data, 
                                                      self.bpm_to_test)
