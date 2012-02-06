@@ -53,15 +53,14 @@ class Listener(multiprocessing.Process):
             self.read_function = self.stream.read
         else:
             ######################## WAVE Block #############################
-            # self.stream = wave.open('crazy.wav', 'r')
-            # self.num_channels = self.stream.getnchannels()
-            # self.framerate = self.stream.getframerate()
-            # self.sample_width = self.stream.getsampwidth()
-            # self.read_function = self.stream.readframes
-            ######################## end ####################################
+            self.stream = wave.open('crazy.wav', 'r')
+            self.num_channels = self.stream.getnchannels()
+            self.framerate = self.stream.getframerate()
+            self.sample_width = self.stream.getsampwidth()
+            self.read_function = self.stream.readframes
         
-        data_buffer_size = int(self.framerate * self.block_size_s)
-        self.data_buffer = np.zeros(data_buffer_size)
+        # data_buffer_size = int(self.framerate * self.block_size_s)
+        # self.data_buffer = np.zeros(data_buffer_size)
         cutoff = 160
         nyq = self.framerate/2
         self.decimate_ratio = int(nyq//cutoff)
@@ -131,29 +130,29 @@ class Listener(multiprocessing.Process):
         #TODO: Try combining the two channels instead of stripping out one
         return channels[0]
 
+    def read_audio_block(self):
+        elapsed_time = time.time() - self.read_timestamp
+        time.sleep(self.block_size_s - elapsed_time - 0.5)
+        available_samples = int(self.block_size_s * self.framerate)
+        if self.sample_width == 1: 
+            # read unsigned chars
+            self.fmt = "%iB" % available_samples * self.num_channels
+        elif self.sample_width == 2:
+            # read signed 2 byte shorts
+            self.fmt = "%ih" % available_samples * self.num_channels
+        else:
+            raise ValueError("Only supports 8 and 16 bit audio formats.")
+
+        data = self.read_function(available_samples)
+        self.read_timestamp = time.time()
+        return data
 
     def run(self):
         self.open_stream()
         self.bpm_to_test = np.linspace(50, 99)
         while True:
-            elapsed_time = time.time() - self.read_timestamp
-            time.sleep(self.block_size_s - elapsed_time - 0.5)
-            available_samples = int(self.block_size_s * self.framerate)
-            if self.sample_width == 1: 
-                # read unsigned chars
-                self.fmt = "%iB" % available_samples * self.num_channels
-            elif self.sample_width == 2:
-                # read signed 2 byte shorts
-                self.fmt = "%ih" % available_samples * self.num_channels
-            else:
-                raise ValueError("Only supports 8 and 16 bit audio formats.")
-
-            data = self.read_function(available_samples)
-            self.read_timestamp = time.time()
-            raw_data = self.unpack_audio_data(data)
-
-            self.data_buffer = raw_data
-
+            data = self.read_audio_block()
+            self.data_buffer = self.unpack_audio_data(data)
             enveloped_data = self.filter_and_envelope(self.data_buffer)
 
             fft_data = np.fft.rfft(enveloped_data - np.average(enveloped_data))
