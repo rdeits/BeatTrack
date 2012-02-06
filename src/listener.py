@@ -95,7 +95,8 @@ class Listener(multiprocessing.Process):
                 max_energy_bpm = bpm
                 max_energy_phase = phase
         self.bpm_energies = np.array(all_energies)
-        confidence = (max_energy - np.average(all_energies)) / np.std(all_energies)
+        confidence = ((max_energy - np.average(self.bpm_energies))
+                      / np.std(self.bpm_energies))
         return (max_energy_bpm, max_energy_phase, confidence)
 
     def trybeat(self, envelope, bpm):
@@ -149,7 +150,7 @@ class Listener(multiprocessing.Process):
 
     def run(self):
         self.open_stream()
-        self.bpm_to_test = range(50, 99)
+        self.bpm_to_test = range(50, 180)
         while True:
             data = self.read_audio_block()
             self.data_buffer = self.unpack_audio_data(data)
