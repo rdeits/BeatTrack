@@ -42,7 +42,7 @@ def trybeat(envelope, bpm, num_teeth, filtered_framerate):
                               for i in range(comb_positions)])
         comb_vals = np.power(comb_vals, 4)
     energy = np.sum(comb_vals)/(comb_positions * num_teeth**4) #take the average so that the function doesn't favor smaller combs that can calculate more values before they hit the end of the envelope waveform
-    phase = np.argmax(comb_vals)
+    phase = np.argmax(comb_vals)/filtered_framerate # Phase in seconds
     return (energy, phase)
 
 def most_likely_bpm(enveloped_data, bpm_list, filtered_framerate, 
@@ -50,14 +50,18 @@ def most_likely_bpm(enveloped_data, bpm_list, filtered_framerate,
     max_energy = 0
     max_energy_bpm = 0
     max_energy_phase = 0
+    all_energies = []
     for i, bpm in enumerate(bpm_list):
         num_teeth = calc_num_teeth(block_size_s, bpm)
         energy, phase = trybeat(enveloped_data, bpm, num_teeth, filtered_framerate)
+        all_energies.append(energy)
         if energy > max_energy:
             max_energy = energy
             max_energy_bpm = bpm
             max_energy_phase = phase
-    return max_energy_bpm, max_energy_phase
+    all_energies = np.array(all_energies)
+    confidence = (max_energy - np.average(all_energies)) / np.std(all_energies)
+    return max_energy_bpm, max_energy_phase, confidence
 
 def filter_and_envelope(raw_data, q):
     filtered_data = scipy.signal.decimate(raw_data, q, n=3, ftype="iir")
@@ -106,7 +110,7 @@ if __name__  == "__main__":
         # enveloped_data = fast_rolling_envelope(enveloped_data, 10)
         # enveloped_data = np.power(enveloped_data, 2)
         # enveloped_data = savitzky_golay(enveloped_data, 11, 3, deriv=0)
-        bpm, phase = most_likely_bpm(enveloped_data, 
+        bpm, phase, confidence = most_likely_bpm(enveloped_data, 
                                      bpm_to_test, 
                                      filtered_framerate,
                                      block_size_s)
@@ -118,7 +122,7 @@ if __name__  == "__main__":
             plt.hold(True)
             plt.plot(enveloped_data,'r')
             num_teeth = calc_num_teeth(block_size_s, bpm)
-            plt.plot([len(enveloped_data) - (phase + gap * i) for i in range(num_teeth)], [0 for i in range(num_teeth)], 'ko')
+            plt.plot([len(enveloped_data) - (phase*filtered_framerate + gap * i) for i in range(num_teeth)], [0 for i in range(num_teeth)], 'ko')
             plt.figure()
             bpm_energies = [trybeat(enveloped_data, 
                                            bpm, calc_num_teeth(block_size_s, bpm),
@@ -135,7 +139,6 @@ if __name__  == "__main__":
     # plt.plot(filtered_data,'b')
     # plt.hold(True)
     # plt.plot(enveloped_data,'r')
-    # plt.plot([len(enveloped_data) - max_energy_phase, len(enveloped_data) - (max_energy_phase + max_energy_gap), len(enveloped_data) - (max_energy_phase + max_energy_gap*2)], [0, 0, 0], 'ko')
     # # plt.plot([median_rolling_envelope(channels[0], i, 1000) for i in range(len(channels[0]))],'g')
     # plt.figure()
     # plt.plot(bpm_to_plot, [trybeat(enveloped_data, bpm) for bpm in bpm_to_plot])
