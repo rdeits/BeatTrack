@@ -37,19 +37,24 @@ def fast_rolling_envelope(data, width):
 
 class Listener(multiprocessing.Process):
     def open_stream(self):
-        p = pyaudio.PyAudio()
+        # p = pyaudio.PyAudio()
         self.block_size_s = 5
-        self.stream = p.open(input_device_index = 3, 
-                             format = FORMAT, 
-                             channels = CHANNELS,
-                             rate = RATE, 
-                             input = True, 
-                             frames_per_buffer = self.block_size_s * RATE)
-        self.num_channels = CHANNELS
-        self.framerate = RATE
+        # self.stream = p.open(input_device_index = 3, 
+        #                      format = FORMAT, 
+        #                      channels = CHANNELS,
+        #                      rate = RATE, 
+        #                      input = True, 
+        #                      frames_per_buffer = self.block_size_s * RATE)
+        # self.num_channels = CHANNELS
+        # self.sample_width = p.get_sample_size(FORMAT)
+        # self.framerate = RATE
+        self.stream = wave.open('crazy.wav', 'r')
+        self.num_channels = self.stream.getnchannels()
+        self.framerate = self.stream.getframerate()
+        self.sample_width = self.stream.getsampwidth()
+        
         data_buffer_size = int(self.framerate * self.block_size_s)
         self.data_buffer = np.zeros(data_buffer_size)
-        self.sample_width = p.get_sample_size(FORMAT)
         cutoff = 160
         nyq = self.framerate/2
         self.decimate_ratio = int(nyq//cutoff)
@@ -140,12 +145,15 @@ class Listener(multiprocessing.Process):
             #     int((time.time() - self.read_timestamp) * self.framerate * 1.5),
             #     1024)
             if self.sample_width == 1: 
-                self.fmt = "%iB" % available_samples # read unsigned chars
+                # read unsigned chars
+                self.fmt = "%iB" % available_samples * self.num_channels
             elif self.sample_width == 2:
-                self.fmt = "%ih" % available_samples # read signed 2 byte shorts
+                # read signed 2 byte shorts
+                self.fmt = "%ih" % available_samples * self.num_channels
             else:
                 raise ValueError("Only supports 8 and 16 bit audio formats.")
-            data = self.stream.read(available_samples)
+            # data = self.stream.read(available_samples)
+            data = self.stream.readframes(available_samples)
             self.read_timestamp = time.time()
             raw_data = self.unpack_audio_data(data)
 
