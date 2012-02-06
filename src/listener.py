@@ -49,11 +49,13 @@ class Listener(multiprocessing.Process):
         self.num_channels = CHANNELS
         self.sample_width = p.get_sample_size(FORMAT)
         self.framerate = RATE
+        self.read_function = self.stream.read
         ######################## WAVE Block #############################
         # self.stream = wave.open('crazy.wav', 'r')
         # self.num_channels = self.stream.getnchannels()
         # self.framerate = self.stream.getframerate()
         # self.sample_width = self.stream.getsampwidth()
+        # self.read_function = self.stream.readframes
         ######################## end ####################################
         
         data_buffer_size = int(self.framerate * self.block_size_s)
@@ -137,16 +139,9 @@ class Listener(multiprocessing.Process):
         self.open_stream()
         self.bpm_to_test = np.linspace(50, 99)
         while True:
-            # data = self.stream.read(int(self.block_size_s * self.framerate))
-            # available_samples = self.stream.get_read_available()
-            # print "in loop"
-
-            # elapsed_time = time.time() - self.read_timestamp
-            # time.sleep(2 - elapsed_time)
+            elapsed_time = time.time() - self.read_timestamp
+            time.sleep(self.block_size_s - elapsed_time - 0.5)
             available_samples = int(self.block_size_s * self.framerate)
-            # available_samples = max(
-            #     int((time.time() - self.read_timestamp) * self.framerate * 1.5),
-            #     1024)
             if self.sample_width == 1: 
                 # read unsigned chars
                 self.fmt = "%iB" % available_samples * self.num_channels
@@ -155,8 +150,8 @@ class Listener(multiprocessing.Process):
                 self.fmt = "%ih" % available_samples * self.num_channels
             else:
                 raise ValueError("Only supports 8 and 16 bit audio formats.")
-            data = self.stream.read(available_samples)
-            # data = self.stream.readframes(available_samples)
+
+            data = self.read_function(available_samples)
             self.read_timestamp = time.time()
             raw_data = self.unpack_audio_data(data)
 
