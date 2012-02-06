@@ -155,12 +155,6 @@ class Listener(multiprocessing.Process):
             self.data_buffer = self.unpack_audio_data(data)
             enveloped_data = self.filter_and_envelope(self.data_buffer)
 
-            fft_data = np.fft.rfft(enveloped_data - np.average(enveloped_data))
-            max_fft_index = np.argmax(fft_data)
-            max_fft_freq = max_fft_index * self.filtered_framerate / len(enveloped_data)
-            max_fft_bpm = max_fft_freq * 60
-            print max_fft_bpm
-
             bpm, phase, confidence = self.most_likely_bpm(enveloped_data, 
                                                      self.bpm_to_test)
             self.result = (bpm, phase, confidence)
