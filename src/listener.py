@@ -149,7 +149,7 @@ class Listener(multiprocessing.Process):
 
     def run(self):
         self.open_stream()
-        self.bpm_to_test = np.linspace(50, 99)
+        self.bpm_to_test = range(50, 99)
         while True:
             data = self.read_audio_block()
             self.data_buffer = self.unpack_audio_data(data)
