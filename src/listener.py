@@ -36,27 +36,29 @@ def fast_rolling_envelope(data, width):
     return output
 
 class Listener(multiprocessing.Process):
-    def open_stream(self):
+    def open_stream(self, live = True):
         self.block_size_s = 5
-        ######################## PyAudio Block #############################
-        p = pyaudio.PyAudio()
-        self.stream = p.open(input_device_index = 3, 
-                             format = FORMAT, 
-                             channels = CHANNELS,
-                             rate = RATE, 
-                             input = True, 
-                             frames_per_buffer = self.block_size_s * RATE)
-        self.num_channels = CHANNELS
-        self.sample_width = p.get_sample_size(FORMAT)
-        self.framerate = RATE
-        self.read_function = self.stream.read
-        ######################## WAVE Block #############################
-        # self.stream = wave.open('crazy.wav', 'r')
-        # self.num_channels = self.stream.getnchannels()
-        # self.framerate = self.stream.getframerate()
-        # self.sample_width = self.stream.getsampwidth()
-        # self.read_function = self.stream.readframes
-        ######################## end ####################################
+        if live:
+            ######################## PyAudio Block #############################
+            p = pyaudio.PyAudio()
+            self.stream = p.open(input_device_index = 3, 
+                                 format = FORMAT, 
+                                 channels = CHANNELS,
+                                 rate = RATE, 
+                                 input = True, 
+                                 frames_per_buffer = self.block_size_s * RATE)
+            self.num_channels = CHANNELS
+            self.sample_width = p.get_sample_size(FORMAT)
+            self.framerate = RATE
+            self.read_function = self.stream.read
+        else:
+            ######################## WAVE Block #############################
+            # self.stream = wave.open('crazy.wav', 'r')
+            # self.num_channels = self.stream.getnchannels()
+            # self.framerate = self.stream.getframerate()
+            # self.sample_width = self.stream.getsampwidth()
+            # self.read_function = self.stream.readframes
+            ######################## end ####################################
         
         data_buffer_size = int(self.framerate * self.block_size_s)
         self.data_buffer = np.zeros(data_buffer_size)
@@ -109,8 +111,6 @@ class Listener(multiprocessing.Process):
             return (0, 0)
         else:
             comb_positions = gap
-            # comb_positions = len(envelope) - comb_width
-
             comb_vals = np.array([np.sum(envelope[[-(i+j*gap) for j in range(num_teeth)]])
                                   for i in range(comb_positions)])
             comb_vals = np.power(comb_vals, 4)
@@ -122,9 +122,6 @@ class Listener(multiprocessing.Process):
         """
         Decode the bytearray into one channel of numerical values
         """
-        # if len(data) < block_size_s * framerate * num_channels * sample_width:
-        #     print "not enough samples"
-        #     break
         data = wave.struct.unpack(self.fmt, data)
         channels = [ [] for x in range(self.num_channels) ]
 
@@ -155,8 +152,6 @@ class Listener(multiprocessing.Process):
             self.read_timestamp = time.time()
             raw_data = self.unpack_audio_data(data)
 
-            # self.data_buffer[:-len(raw_data)] = self.data_buffer[len(raw_data):]
-            # self.data_buffer[-len(raw_data):] = raw_data
             self.data_buffer = raw_data
 
             enveloped_data = self.filter_and_envelope(self.data_buffer)
