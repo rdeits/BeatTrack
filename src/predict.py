@@ -20,6 +20,7 @@ class Predictor:
         self.results_list = [(0, 0, 0, 0) for i in range(self.num_results)]
         self.result = self.conn.recv()
         self.results_list[-1] = self.result
+        self.printed_beat_times = []
         print "starting to predict"
         while True:
             i = 0
@@ -28,15 +29,15 @@ class Predictor:
                     new_result = self.conn.recv()
                     self.results_list[:-1] = self.results_list[1:]
                     self.results_list[-1] = new_result
-                    confidence_list = [x[3] for x in self.results_list]
-                    avg_confidence = np.average(confidence_list)
                     bpm, phase, timestamp, confidence = new_result
                     print new_result
+                    confidence_list = [x[3] for x in self.results_list]
+                    avg_confidence = np.average(confidence_list)
                     if bpm != 0 and confidence > avg_confidence:
                         lag = abs(self.calculate_next_beat(new_result) 
                                   - self.calculate_next_beat(self.result))
-                        if lag > .25 or abs(bpm - self.result[0]) > 1:
-                            print "off by", lag
+                        if lag > .25 or abs(bpm - self.result[0]) > 1 or time.time() - timestamp > 20:
+                            # print "off by", lag
                             self.result = (bpm, phase, confidence, timestamp)
                 bpm = self.result[0]
                 bpm_list = [x[0] for x in self.results_list]
@@ -44,6 +45,10 @@ class Predictor:
                     next_beat_time = self.calculate_next_beat(self.result)
                     time.sleep(next_beat_time - time.time())
                     print "Beat:", i, "at", bpm, "BPM"
+                    now = time.time()
+                    self.printed_beat_times.append(now)
+                    if i > 10:
+                        print "Printing at", 10 * 60. / (now - self.printed_beat_times[i-10]) 
                     i += 1
 
 if __name__ == "__main__":
