@@ -1,7 +1,8 @@
 Try me: 
 =======
-cd src
-python listener.py
+
+    cd src
+    python listener.py
 
 Requirements:
 =============
