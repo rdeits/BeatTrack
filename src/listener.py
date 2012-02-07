@@ -36,6 +36,12 @@ def fast_rolling_envelope(data, width):
     return output
 
 class Listener(multiprocessing.Process):
+    def __init__(self, connection=None):
+        super(Listener, self).__init__()
+        self.result = (0, 0, 0, 0)
+        self.conn = connection
+
+
     def open_stream(self, live = True):
         self.block_size_s = 5
         if live:
@@ -165,12 +171,11 @@ class Listener(multiprocessing.Process):
 
             bpm, energy, phase, confidence = self.most_likely_bpm(enveloped_data, 
                                                      self.bpm_to_test)
-            self.result = (bpm, phase, confidence)
-            print "Most likely BPM:", bpm, "phase:", phase, "confidence:", confidence
-            # print "2X harmonic:", bpm * 2, "ratio:", (self.trybeat(enveloped_data, 2*bpm)[0])/energy
-            # print "3X harmonic:", bpm * 3, "radio:", (self.trybeat(enveloped_data, 3*bpm)[0])/energy
-            # if bpm != 0:
-                # print "Next beat in", (60./bpm - phase), "seconds"
+            self.result = (bpm, phase, self.read_timestamp, confidence)
+            if self.conn is not None:
+                self.conn.send(self.result)
+            else:
+                print "Most likely BPM:", bpm, "phase:", phase, "confidence:", confidence
 
 if __name__ == "__main__":
     listener = Listener()
