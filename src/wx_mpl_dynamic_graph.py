@@ -35,19 +35,25 @@ from matplotlib.backends.backend_wxagg import \
 import numpy as np
 import pylab
 from listener import Listener
+import multiprocessing
 
 
 class DataGen(object):
-    """ A silly class that generates pseudo-random data for
-        display in the plot.
-    """
     def __init__(self):
-        self.listener = Listener()
+        conn1, conn2 = multiprocessing.Pipe()
+        self.conn = conn2
+        self.listener = Listener(debug_connection = conn1)
         self.listener.start()
+        self.bpm_to_test = [0]
+        self.bpm_energies = [0]
+
+    def __iter__(self):
+        return self
         
     def next(self):
-        # print self.listener.bpm_energies
-        return self.listener.bpm_energies
+        while self.conn.poll():
+            self.bpm_to_test, self.bpm_energies = self.conn.recv()
+        return (self.bpm_to_test, self.bpm_energies)
 
 class GraphFrame(wx.Frame):
     """ The main frame of the application
@@ -58,9 +64,10 @@ class GraphFrame(wx.Frame):
         wx.Frame.__init__(self, None, -1, self.title)
         
         self.datagen = DataGen()
-        self.data = self.datagen.next()
+        self.xdata, self.ydata = self.datagen.next()
         
         self.create_main_panel()
+        print "Created main panel"
         
         self.redraw_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_redraw_timer, self.redraw_timer)        
@@ -95,7 +102,7 @@ class GraphFrame(wx.Frame):
         # to the plotted line series
         #
         self.plot_data = self.axes.plot(
-            self.datagen.listener.xdata, self.data, 
+            self.xdata, self.ydata, 
             linewidth=1,
             color=(1, 1, 0),
             )[0]
@@ -106,31 +113,24 @@ class GraphFrame(wx.Frame):
         # for ymin and ymax, find the minimal and maximal values
         # in the data set and add a mininal margin.
         # 
-        # note that it's easy to change this scheme to the 
-        # minimal/maximal value in the current display, and not
-        # the whole data set.
-        # 
-        ymin = round(min(self.data), 0) - 1
-        ymax = round(max(self.data), 0) + 1
+        ymin = round(min(self.ydata), 0) - 1
+        ymax = round(max(self.ydata), 0) + 1
+        xmin = round(min(self.xdata), 0) - 1
+        xmax = round(max(self.xdata), 0) + 1
 
-        # self.axes.set_xbound(lower=xmin, upper=xmax)
+        self.axes.set_xbound(lower=xmin, upper=xmax)
         self.axes.set_ybound(lower=ymin, upper=ymax)
         
-        # anecdote: axes.grid assumes b=True if any other flag is
-        # given even if b is set to False.
-        # so just passing the flag into the first statement won't
-        # work.
-        #
 
-        # self.plot_data.set_xdata(np.arange(len(self.data)))
-        self.plot_data.set_ydata(np.array(self.data))
+        self.plot_data.set_xdata(self.xdata)
+        self.plot_data.set_ydata(self.ydata)
         
         self.canvas.draw()
     
     
     
     def on_redraw_timer(self, event):
-        self.data = self.datagen.next()
+        self.xdata, self.ydata = self.datagen.next()
         
         self.draw_plot()
     
