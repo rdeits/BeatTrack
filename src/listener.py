@@ -67,7 +67,9 @@ class Listener(multiprocessing.Process):
             self.read_function = self.stream.readframes
         
         self.data_buffer_factor = 2
-        self.data_buffer = np.zeros(self.data_buffer_factor * self.framerate * self.block_size_s)
+        self.data_buffer = np.zeros(self.data_buffer_factor 
+                                    * self.framerate 
+                                    * self.block_size_s)
         cutoff = 160
         nyq = self.framerate/2
         self.decimate_ratio = int(nyq//cutoff)
@@ -87,25 +89,20 @@ class Listener(multiprocessing.Process):
                                               ftype="iir")
         enveloped_data = fast_rolling_envelope(filtered_data, 50)
         enveloped_data = np.diff(enveloped_data)
-        enveloped_data = np.max(np.vstack((enveloped_data, np.zeros_like(enveloped_data))), 0)
+        enveloped_data = np.max(np.vstack((enveloped_data, 
+                                           np.zeros_like(enveloped_data))), 0)
         enveloped_data = fast_rolling_envelope(enveloped_data, 10)
         return enveloped_data
 
     def most_likely_bpm(self, enveloped_data, bpm_list):
         max_energy = 0
         max_energy_bpm = 0
-        # best_bpms = [(0, 0), (0, 0), (0, 0)]
         max_energy_phase = 0
         all_energies = []
         for i, bpm in enumerate(bpm_list):
             num_teeth = self.calc_num_teeth(bpm)
             energy, phase = self.trybeat(enveloped_data, bpm)
             all_energies.append(energy)
-            # for j, entry in enumerate(best_bpms):
-            #     if energy > entry[1]:
-            #         best_bpms[j] = (bpm, energy)
-            #         max_energy_phase = phase
-            #         break
             if energy > max_energy:
                 max_energy = energy
                 max_energy_bpm = bpm
@@ -128,9 +125,11 @@ class Listener(multiprocessing.Process):
         return (max_energy_bpm, max_energy, max_energy_phase, confidence)
 
     def trybeat(self, envelope, bpm):
-        """Try a 3-sample comb filter on the envelope-filtered data at a given BPM. 
+        """
+        Try a 3-sample comb filter on the envelope-filtered data at a given BPM. 
         Based on Ciuffo's implementation at 
-        http://ch00ftech.com/2012/02/02/software-beat-tracking-because-a-tap-tempo-button-is-too-lazy/"""
+        http://ch00ftech.com/2012/02/02/software-beat-tracking-because-a-tap-tempo-button-is-too-lazy/
+        """
         gap = self.bpm_to_numsamples(bpm) #converts BPM to samples per beat
         num_teeth = self.calc_num_teeth(bpm)
         assert num_teeth > 3, "Block size too small: %3d" %num_teeth
