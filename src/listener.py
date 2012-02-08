@@ -44,7 +44,7 @@ class Listener(multiprocessing.Process):
 
 
     def open_stream(self):
-        self.block_size_s = 5
+        self.block_size_s = 2.5
         if self.live:
             ######################## PyAudio Block #############################
             p = pyaudio.PyAudio()
@@ -53,7 +53,7 @@ class Listener(multiprocessing.Process):
                                  channels = CHANNELS,
                                  rate = RATE, 
                                  input = True, 
-                                 frames_per_buffer = self.block_size_s * RATE)
+                                 frames_per_buffer = int(self.block_size_s * RATE))
             self.num_channels = CHANNELS
             self.sample_width = p.get_sample_size(FORMAT)
             self.framerate = RATE
@@ -66,8 +66,8 @@ class Listener(multiprocessing.Process):
             self.sample_width = self.stream.getsampwidth()
             self.read_function = self.stream.readframes
         
-        # data_buffer_size = int(self.framerate * self.block_size_s)
-        # self.data_buffer = np.zeros(data_buffer_size)
+        self.data_buffer_factor = 2
+        self.data_buffer = np.zeros(self.data_buffer_factor * self.framerate * self.block_size_s)
         cutoff = 160
         nyq = self.framerate/2
         self.decimate_ratio = int(nyq//cutoff)
@@ -78,7 +78,7 @@ class Listener(multiprocessing.Process):
         return int(self.filtered_framerate / (bpm / 60))
 
     def calc_num_teeth(self, bpm):
-        return int(self.block_size_s * bpm / 60.)
+        return int(self.block_size_s * self.data_buffer_factor * bpm / 60.)
 
     def filter_and_envelope(self, raw_data):
         filtered_data = scipy.signal.decimate(raw_data,
@@ -119,13 +119,12 @@ class Listener(multiprocessing.Process):
         #     plt.figure(2)
         #     plt.plot(enveloped_data)
         #     plt.show()
-        # bpm_range = bpm_list[-1] - bpm_list[0]
-        # if bpm_range > 1:
-        #     return self.most_likely_bpm(enveloped_data, 
-        #                                 np.linspace(max_energy_bpm - bpm_range * .2,
-        #                                             max_energy_bpm + bpm_range * .2,
-        #                                             50))
-        # else:
+        bpm_range = bpm_list[-1] - bpm_list[0]
+        if bpm_range > 10:
+            max_energy_bpm = self.most_likely_bpm(enveloped_data, 
+                                        np.linspace(max(max_energy_bpm - 2, 0),
+                                                    max_energy_bpm + 2,
+                                                    17))[0]
         return (max_energy_bpm, max_energy, max_energy_phase, confidence)
 
     def trybeat(self, envelope, bpm):
@@ -134,15 +133,7 @@ class Listener(multiprocessing.Process):
         http://ch00ftech.com/2012/02/02/software-beat-tracking-because-a-tap-tempo-button-is-too-lazy/"""
         gap = self.bpm_to_numsamples(bpm) #converts BPM to samples per beat
         num_teeth = self.calc_num_teeth(bpm)
-        assert num_teeth > 3, "Block size too small"
-        #####
-        # comb = np.zeros_like(envelope)
-        # comb[range(0, gap*num_teeth, gap)] = 1
-        # dft_envelope = np.fft.fft(envelope)
-        # dft_comb = np.fft.fft(comb)
-        # energy = np.sum(np.power(np.abs(dft_envelope * dft_comb), 2))/bpm**2
-        # phase = 0
-        ######
+        assert num_teeth > 3, "Block size too small: %3d" %num_teeth
         comb_width = (num_teeth - 1) * gap
         if (len(envelope)<=comb_width): #envelope waveform is too small to fit comb
             return (0, 0)
@@ -193,7 +184,10 @@ class Listener(multiprocessing.Process):
         self.bpm_to_test = np.linspace(90, 180, 91)
         while True:
             data = self.read_audio_block()
-            self.data_buffer = self.unpack_audio_data(data)
+            new_data = self.unpack_audio_data(data)
+            self.data_buffer[:-len(new_data)] = self.data_buffer[len(new_data):]
+            self.data_buffer[-len(new_data):] = new_data
+            # self.data_buffer = self.unpack_audio_data(data)
             enveloped_data = self.filter_and_envelope(self.data_buffer)
 
             bpm, energy, phase, confidence = self.most_likely_bpm(enveloped_data, 
@@ -207,7 +201,7 @@ class Listener(multiprocessing.Process):
                 self.debug_conn.send((self.bpm_to_test, self.bpm_energies))
 
 if __name__ == "__main__":
-    listener = Listener(live = False)
+    listener = Listener(live = True)
     listener.start()
     listener.join()
             
