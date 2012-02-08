@@ -87,11 +87,11 @@ class Listener(multiprocessing.Process):
                                               self.decimate_ratio, 
                                               n=3, 
                                               ftype="iir")
-        enveloped_data = fast_rolling_envelope(filtered_data, 50)
+        enveloped_data = fast_rolling_envelope(filtered_data, 10)
         enveloped_data = np.diff(enveloped_data)
         enveloped_data = np.max(np.vstack((enveloped_data, 
                                            np.zeros_like(enveloped_data))), 0)
-        enveloped_data = fast_rolling_envelope(enveloped_data, 10)
+        enveloped_data = fast_rolling_envelope(enveloped_data, 5)
         return enveloped_data
 
     def most_likely_bpm(self, enveloped_data, bpm_list):
@@ -112,7 +112,7 @@ class Listener(multiprocessing.Process):
                       / np.std(self.bpm_energies))
         # if not self.live:
         #     plt.figure(1)
-        #     plt.plot(self.bpm_to_test, self.bpm_energies)
+        #     plt.plot(self.bpm_energies)
         #     plt.figure(2)
         #     plt.plot(enveloped_data)
         #     plt.show()
@@ -200,7 +200,7 @@ class Listener(multiprocessing.Process):
                 self.debug_conn.send((self.bpm_to_test, self.bpm_energies))
 
 if __name__ == "__main__":
-    listener = Listener(live = True)
+    listener = Listener(live = False)
     listener.start()
     listener.join()
             
