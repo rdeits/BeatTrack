@@ -48,11 +48,11 @@ class Listener(multiprocessing.Process):
         if self.live:
             ######################## PyAudio Block #############################
             p = pyaudio.PyAudio()
-            self.stream = p.open(input_device_index = 3, 
-                                 format = FORMAT, 
+            self.stream = p.open(input_device_index = 3,
+                                 format = FORMAT,
                                  channels = CHANNELS,
-                                 rate = RATE, 
-                                 input = True, 
+                                 rate = RATE,
+                                 input = True,
                                  frames_per_buffer = int(self.block_size_s * RATE))
             self.num_channels = CHANNELS
             self.sample_width = p.get_sample_size(FORMAT)
@@ -65,10 +65,10 @@ class Listener(multiprocessing.Process):
             self.framerate = self.stream.getframerate()
             self.sample_width = self.stream.getsampwidth()
             self.read_function = self.stream.readframes
-        
+
         self.data_buffer_factor = 2
-        self.data_buffer = np.zeros(self.data_buffer_factor 
-                                    * self.framerate 
+        self.data_buffer = np.zeros(self.data_buffer_factor
+                                    * self.framerate
                                     * self.block_size_s)
         cutoff = 160
         nyq = self.framerate/2
@@ -83,14 +83,22 @@ class Listener(multiprocessing.Process):
         return int(self.block_size_s * self.data_buffer_factor * bpm / 60.)
 
     def filter_and_envelope(self, raw_data):
+        """
+        Run all of our filters on the data, returning the result.
+        """
+        # Downsample and low-pass filter
         filtered_data = scipy.signal.decimate(raw_data,
-                                              self.decimate_ratio, 
-                                              n=3, 
+                                              self.decimate_ratio,
+                                              n=3,
                                               ftype="iir")
+        # Envelope filter
         enveloped_data = fast_rolling_envelope(filtered_data, 10)
+        # Derivative filter
         enveloped_data = np.diff(enveloped_data)
-        enveloped_data = np.max(np.vstack((enveloped_data, 
+        # Half-wave rectify
+        enveloped_data = np.max(np.vstack((enveloped_data,
                                            np.zeros_like(enveloped_data))), 0)
+        # Envelope filter
         enveloped_data = fast_rolling_envelope(enveloped_data, 5)
         return enveloped_data
 
@@ -99,8 +107,7 @@ class Listener(multiprocessing.Process):
         max_energy_bpm = 0
         max_energy_phase = 0
         all_energies = []
-        for i, bpm in enumerate(bpm_list):
-            num_teeth = self.calc_num_teeth(bpm)
+        for bpm in bpm_list:
             energy, phase = self.trybeat(enveloped_data, bpm)
             all_energies.append(energy)
             if energy > max_energy:
@@ -112,27 +119,27 @@ class Listener(multiprocessing.Process):
                       / np.std(self.bpm_energies))
         # if not self.live:
         #     plt.figure(1)
-        #     plt.plot(self.bpm_energies)
+        #     plt.plot(bpm_list, self.bpm_energies)
         #     plt.figure(2)
         #     plt.plot(enveloped_data)
         #     plt.show()
-        bpm_range = bpm_list[-1] - bpm_list[0]
-        if bpm_range > 10:
-            max_energy_bpm = self.most_likely_bpm(enveloped_data, 
-                                        np.linspace(max(max_energy_bpm - 2, 0),
-                                                    max_energy_bpm + 2,
-                                                    17))[0]
+        # bpm_range = bpm_list[-1] - bpm_list[0]
+        # if bpm_range > 10:
+        #     max_energy_bpm = self.most_likely_bpm(enveloped_data,
+        #                                 np.linspace(max(max_energy_bpm - 2, 0),
+        #                                             max_energy_bpm + 2,
+        #                                             17))[0]
         return (max_energy_bpm, max_energy, max_energy_phase, confidence)
 
     def trybeat(self, envelope, bpm):
         """
-        Try a 3-sample comb filter on the envelope-filtered data at a given BPM. 
-        Based on Ciuffo's implementation at 
+        Try a 3-sample comb filter on the envelope-filtered data at a given BPM.
+        Based on Ciuffo's implementation at
         http://ch00ftech.com/2012/02/02/software-beat-tracking-because-a-tap-tempo-button-is-too-lazy/
         """
         gap = self.bpm_to_numsamples(bpm) #converts BPM to samples per beat
         num_teeth = self.calc_num_teeth(bpm)
-        assert num_teeth > 3, "Block size too small: %3d" %num_teeth
+        assert num_teeth > 3, "Block size too small: %3d" % num_teeth
         comb_width = (num_teeth - 1) * gap
         if (len(envelope)<=comb_width): #envelope waveform is too small to fit comb
             return (0, 0)
@@ -164,7 +171,7 @@ class Listener(multiprocessing.Process):
         if self.live:
             time.sleep(self.block_size_s - elapsed_time - 0.5)
         available_samples = int(self.block_size_s * self.framerate)
-        if self.sample_width == 1: 
+        if self.sample_width == 1:
             # read unsigned chars
             self.fmt = "%iB" % available_samples * self.num_channels
         elif self.sample_width == 2:
@@ -189,7 +196,7 @@ class Listener(multiprocessing.Process):
             # self.data_buffer = self.unpack_audio_data(data)
             enveloped_data = self.filter_and_envelope(self.data_buffer)
 
-            bpm, energy, phase, confidence = self.most_likely_bpm(enveloped_data, 
+            bpm, energy, phase, confidence = self.most_likely_bpm(enveloped_data,
                                                      self.bpm_to_test)
             self.result = (bpm, phase, self.read_timestamp, confidence)
             if self.conn is not None:
@@ -203,4 +210,4 @@ if __name__ == "__main__":
     listener = Listener(live = False)
     listener.start()
     listener.join()
-            
+

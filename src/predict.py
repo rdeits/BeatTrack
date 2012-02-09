@@ -30,13 +30,13 @@ class Predictor:
                     self.results_list[:-1] = self.results_list[1:]
                     self.results_list[-1] = new_result
                     bpm, phase, timestamp, confidence = new_result
-                    print new_result
+                    # print new_result
                     confidence_list = [x[3] for x in self.results_list]
                     avg_confidence = np.average(confidence_list)
                     if bpm != 0 and confidence > avg_confidence:
-                        lag = abs(self.calculate_next_beat(new_result) 
+                        lag = abs(self.calculate_next_beat(new_result)
                                   - self.calculate_next_beat(self.result))
-                        if lag > .25 or abs(bpm - self.result[0]) > 1 or time.time() - timestamp > 20:
+                        if lag > .1 or abs(bpm - self.result[0]) > 1 or time.time() - timestamp > 20:
                             # print "off by", lag
                             self.result = (bpm, phase, confidence, timestamp)
                 bpm = self.result[0]
@@ -48,14 +48,14 @@ class Predictor:
                     now = time.time()
                     self.printed_beat_times.append(now)
                     if i > 10:
-                        print "Printing at", 10 * 60. / (now - self.printed_beat_times[i-10]) 
+                        print "Printing at", 10 * 60. / (now - self.printed_beat_times[i-10])
                     i += 1
 
 if __name__ == "__main__":
     conn1, conn2 = multiprocessing.Pipe()
-    listener = Listener(conn1)
+    listener = Listener(connection=conn1)
     listener.start()
     predictor = Predictor(conn2)
     predictor.run()
-            
-    
+
+
