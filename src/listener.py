@@ -60,7 +60,7 @@ class Listener(multiprocessing.Process):
             self.read_function = self.stream.read
         else:
             ######################## WAVE Block #############################
-            self.stream = wave.open('crazy.wav', 'r')
+            self.stream = wave.open('120-b.wav', 'r')
             self.num_channels = self.stream.getnchannels()
             self.framerate = self.stream.getframerate()
             self.sample_width = self.stream.getsampwidth()
@@ -73,7 +73,7 @@ class Listener(multiprocessing.Process):
         cutoff = 160
         nyq = self.framerate/2
         self.decimate_ratio = int(nyq//cutoff)
-        self.filtered_framerate = self.framerate / self.decimate_ratio
+        # self.filtered_framerate = self.framerate / self.decimate_ratio
         self.read_timestamp = time.time()
 
     def bpm_to_numsamples(self, bpm):
@@ -91,15 +91,19 @@ class Listener(multiprocessing.Process):
                                               self.decimate_ratio,
                                               n=3,
                                               ftype="iir")
+        self.filtered_framerate = len(filtered_data) / len(raw_data) * self.framerate
+        # plt.figure(3)
+        # plt.plot(filtered_data)
+        # plt.show()
         # Envelope filter
         enveloped_data = fast_rolling_envelope(filtered_data, 10)
         # Derivative filter
-        enveloped_data = np.diff(enveloped_data)
-        # Half-wave rectify
-        enveloped_data = np.max(np.vstack((enveloped_data,
-                                           np.zeros_like(enveloped_data))), 0)
-        # Envelope filter
-        enveloped_data = fast_rolling_envelope(enveloped_data, 5)
+        # enveloped_data = np.diff(enveloped_data)
+        # # Half-wave rectify
+        # enveloped_data = np.max(np.vstack((enveloped_data,
+        #                                    np.zeros_like(enveloped_data))), 0)
+        # # Envelope filter
+        # enveloped_data = fast_rolling_envelope(enveloped_data, 5)
         return enveloped_data
 
     def most_likely_bpm(self, enveloped_data, bpm_list):
@@ -133,7 +137,7 @@ class Listener(multiprocessing.Process):
 
     def trybeat(self, envelope, bpm):
         """
-        Try a 3-sample comb filter on the envelope-filtered data at a given BPM.
+        Try an n-sample comb filter on the envelope-filtered data at a given BPM.
         Based on Ciuffo's implementation at
         http://ch00ftech.com/2012/02/02/software-beat-tracking-because-a-tap-tempo-button-is-too-lazy/
         """
