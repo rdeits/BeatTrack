@@ -2,3 +2,5 @@
 /doc/
 *.pyc
 /matlab/
+*.wav
+*.ogg

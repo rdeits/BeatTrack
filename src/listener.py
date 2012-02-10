@@ -60,7 +60,7 @@ class Listener(multiprocessing.Process):
             self.read_function = self.stream.read
         else:
             ######################## WAVE Block #############################
-            self.stream = wave.open('120-b.wav', 'r')
+            self.stream = wave.open('120.wav', 'r')
             self.num_channels = self.stream.getnchannels()
             self.framerate = self.stream.getframerate()
             self.sample_width = self.stream.getsampwidth()
