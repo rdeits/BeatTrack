@@ -16,11 +16,13 @@ class Predictor:
         return now + (s_per_beat - ((now - (timestamp - phase)) % s_per_beat))
 
     def run(self):
-        self.num_results = 3
+        self.num_results = 5
         self.results_list = [(0, 0, 0, 0) for i in range(self.num_results)]
         self.result = self.conn.recv()
         self.results_list[-1] = self.result
         self.printed_beat_times = []
+        self.last_beat_time = None
+        self.output = 1
         print "starting to predict"
         while True:
             i = 0
@@ -29,27 +31,36 @@ class Predictor:
                     new_result = self.conn.recv()
                     self.results_list[:-1] = self.results_list[1:]
                     self.results_list[-1] = new_result
-                    bpm, phase, timestamp, confidence = new_result
-                    # print new_result
-                    confidence_list = [x[3] for x in self.results_list]
-                    avg_confidence = np.average(confidence_list)
-                    if bpm != 0 and confidence > avg_confidence:
-                        lag = abs(self.calculate_next_beat(new_result)
-                                  - self.calculate_next_beat(self.result))
-                        if lag > .1 or abs(bpm - self.result[0]) > 1 or time.time() - timestamp > 20:
-                            # print "off by", lag
-                            self.result = (bpm, phase, confidence, timestamp)
-                bpm = self.result[0]
+
                 bpm_list = [x[0] for x in self.results_list]
-                if bpm != 0 and np.std(bpm_list) < 2:
-                    next_beat_time = self.calculate_next_beat(self.result)
+                confidence_list = [x[3] for x in self.results_list]
+                bpm = np.average(bpm_list, weights=confidence_list)
+                self.result = (bpm,) + self.results_list[-1][1:]
+                # if bpm != 0 and np.std(bpm_list) < 2:
+                if bpm != 0 and not np.isnan(bpm):
+                    if self.last_beat_time is None:
+                        self.last_beat_time = time.time()
+                    calculated_beat_time = self.calculate_next_beat(self.result)
+                    s_per_beat = 60. / bpm
+                    predicted_beat_time = self.last_beat_time + s_per_beat
+                    calculated_beat_time += round(((predicted_beat_time - calculated_beat_time) % s_per_beat) / s_per_beat) * s_per_beat
+                    next_beat_time = np.average((calculated_beat_time, predicted_beat_time), weights = (0.1, 0.9))
                     time.sleep(next_beat_time - time.time())
-                    print "Beat:", i, "at", bpm, "BPM"
+                    print predicted_beat_time, ",", calculated_beat_time, ",", next_beat_time, bpm
+                    # if self.output:
+                    #     # print "#########################################"
+                    #     # print "Predicted beat at:", predicted_beat_time
+                    #     # print "Calculated beat at:", calculated_beat_time
+                    #     # print "Next beat at:", next_beat_time
+                    #     self.output = 0
+                    # else:
+                    #     self.output = 1
                     now = time.time()
-                    self.printed_beat_times.append(now)
-                    if i > 10:
-                        print "Printing at", 10 * 60. / (now - self.printed_beat_times[i-10])
+                    # print 60. / (now - self.last_beat_time)
+                    self.last_beat_time = now
                     i += 1
+                else:
+                    self.last_beat_time = time.time()
 
 if __name__ == "__main__":
     conn1, conn2 = multiprocessing.Pipe()

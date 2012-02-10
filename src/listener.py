@@ -206,12 +206,12 @@ class Listener(multiprocessing.Process):
             if self.conn is not None:
                 self.conn.send(self.result)
             else:
-                print "Most likely BPM:", bpm, "phase:", phase, "confidence:", confidence
+                print "Most likely BPM:", bpm, "phase:", phase, "confidence:", confidence, "read_timestamp:", self.read_timestamp
             if self.debug_conn is not None:
                 self.debug_conn.send((self.bpm_to_test, self.bpm_energies))
 
 if __name__ == "__main__":
-    listener = Listener(live = False)
+    listener = Listener(live = True)
     listener.start()
     listener.join()
 
